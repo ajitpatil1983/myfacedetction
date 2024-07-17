@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Detection Actions</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+    <style>
+        #videoElement {
+            width: 640px;
+            height: 480px;
+        }
+    </style>
+</head>
+<body>
+    <video id="videoElement" autoplay muted></video>
+    <script>
+        const videoElement = document.getElementById('videoElement');
+
+        async function startVideo() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+            videoElement.srcObject = stream;
+        }
+
+        async function onPlay() {
+            const detectionOptions = new faceapi.TinyFaceDetectorOptions();
+            const result = await faceapi.detectSingleFace(videoElement, detectionOptions)
+                                        .withFaceExpressions()
+                                        .withFaceLandmarks();
+
+            if (result) {
+                const { expressions, landmarks } = result;
+                const leftEye = landmarks.getLeftEye();
+                const rightEye = landmarks.getRightEye();
+                const mouth = landmarks.getMouth();
+
+                const eyeClosedThreshold = 0.25;
+                const isLeftEyeClosed = faceapi.euclideanDistance(leftEye[0], leftEye[3]) < eyeClosedThreshold;
+                const isRightEyeClosed = faceapi.euclideanDistance(rightEye[0], rightEye[3]) < eyeClosedThreshold;
+
+                if (isLeftEyeClosed && isRightEyeClosed) {
+                    console.log('Blink detected');
+                }
+
+                if (expressions.happy > 0.6) {
+                    console.log('Smile detected');
+                }
+
+                const mouthOpenThreshold = 0.3;
+                const mouthHeight = faceapi.euclideanDistance(mouth[14], mouth[18]);
+                if (mouthHeight > mouthOpenThreshold) {
+                    console.log('Mouth open detected');
+                }
+
+                const yaw = faceapi.angle(landmarks.getNose()[3], landmarks.getNose()[4]);
+                if (yaw > 10) {
+                    console.log('Turn face right detected');
+                } else if (yaw < -10) {
+                    console.log('Turn face left detected');
+                }
+            }
+
+            setTimeout(() => onPlay(), 100);
+        }
+
+        async function init() {
+            console.log('Loading models...');
+            await faceapi.nets.tinyFaceDetector.loadFromUri('/myfacedetction/models');
+            await faceapi.nets.faceLandmark68Net.loadFromUri('/myfacedetction/models');
+            await faceapi.nets.faceExpressionNet.loadFromUri('/myfacedetction/models');
+
+            startVideo();
+            videoElement.addEventListener('play', onPlay);
+        }
+
+        init();
+    </script>
+</body>
+</html>
